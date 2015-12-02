@@ -6,6 +6,11 @@
 # V0.1 13th June 2015 Experimental: this code is not yet fully tested
 
 '''
+This software is based on the micropython-mpu9150 module by Sebastian
+Plamauer and Peter Hinch. Matthew Vernacchia has modified it for use with
+the BeagleBone instead of the MicroPython board. These changes involve
+using the Adafruit I2C library instead of pyb.
+
 mpu9250 is a micropython module for the InvenSense MPU9250 sensor.
 It measures acceleration, turn rate and the magnetic field in three axis.
 mpu9150 driver modified for the MPU9250 by Peter Hinch
@@ -37,7 +42,7 @@ THE SOFTWARE.
 # At runtime try to continue returning last good data value. We don't want aircraft
 # crashing. However if the I2C has crashed we're probably stuffed.
 
-import pyb
+from Adafruit_I2C import Adafruit_I2C
 from vector3d import Vector3d
 
 
@@ -67,7 +72,17 @@ class InvenSenseMPU(object):
 
     _I2Cerror = "I2C failure when communicating with IMU"
 
-    def __init__(self, side_str, device_addr, transposition, scaling):
+    def __init__(self, device_addr=0, busnum=-1, transposition, scaling):
+        '''Create an InvenSenseMPU interface.
+
+        Arguments:
+            device_addr (0 or 1): There are two possible I2C slave address for the
+                MPU9x50. This value decides which of the two to use.
+            busnum (integer): Which of the BeagleBone's I2C buses to use.
+            transposition
+            scaling
+
+        '''
 
         self._accel = Vector3d(transposition, scaling, self._accel_callback)
         self._gyro = Vector3d(transposition, scaling, self._gyro_callback)
@@ -76,32 +91,16 @@ class InvenSenseMPU(object):
         self.buf3 = bytearray([0]*3)
         self.buf6 = bytearray([0]*6)
         self.timeout = 10                       # I2C tieout mS
-
-        tim = pyb.millis()                      # Ensure PSU and device have settled
-        if tim < 200:
-            pyb.delay(200-tim)
-
-        try:                                    # Initialise I2C
-            side = {'X': 1, 'Y': 2}[side_str.upper()]
-        except KeyError:
-            raise ValueError('I2C side must be X or Y')
-
-        self._mpu_i2c = pyb.I2C(side, pyb.I2C.MASTER)
+   
 
         if device_addr is None:
-            devices = set(self._mpu_i2c.scan())
-            mpus = devices.intersection(set(self._mpu_addr))
-            number_of_mpus = len(mpus)
-            if number_of_mpus == 0:
-                raise MPUException("No MPU's detected")
-            elif number_of_mpus == 1:
-                self.mpu_addr = mpus.pop()
-            else:
-                raise ValueError("Two MPU's detected: must specify a device address")
+            raise ValueError("Adafruit_I2C does not support scanning")
         else:
             if device_addr not in (0, 1):
                 raise ValueError('Device address must be 0 or 1')
             self.mpu_addr = self._mpu_addr[device_addr]
+
+        self._mpu_i2c = Adafruit_I2C(self.mpu_addr, busnum=busnum)
 
         self.chip_id                     # Test communication by reading chip_id: throws exception on error
         # Can communicate with chip. Set it up.
@@ -115,14 +114,16 @@ class InvenSenseMPU(object):
         '''
         Read bytes to pre-allocated buffer Caller traps OSError.
         '''
-        self._mpu_i2c.mem_read(buf, addr, memaddr, timeout=self.timeout)
+        buf[:] = self._mpu_i2c.readList(memaddr, len(buf))
+        # self._mpu_i2c.mem_read(buf, addr, memaddr, timeout=self.timeout)
 
     # write to device
     def _write(self, data, memaddr, addr):
         '''
         Perform a memory write. Caller should trap OSError.
         '''
-        self._mpu_i2c.mem_write(data, addr, memaddr, timeout=self.timeout)
+        self._mpu_i2c.write8(memaddr, data)
+        # self._mpu_i2c.mem_write(data, addr, memaddr, timeout=self.timeout)
 
     # wake
     def wake(self):
