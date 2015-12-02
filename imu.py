@@ -42,6 +42,7 @@ THE SOFTWARE.
 # At runtime try to continue returning last good data value. We don't want aircraft
 # crashing. However if the I2C has crashed we're probably stuffed.
 
+from __future__ import division
 from Adafruit_I2C import Adafruit_I2C
 from vector3d import Vector3d
 
