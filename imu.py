@@ -72,7 +72,7 @@ class InvenSenseMPU(object):
 
     _I2Cerror = "I2C failure when communicating with IMU"
 
-    def __init__(self, device_addr=0, busnum=-1, transposition, scaling):
+    def __init__(self, device_addr, busnum, transposition, scaling):
         '''Create an InvenSenseMPU interface.
 
         Arguments:
