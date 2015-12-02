@@ -73,7 +73,7 @@ class InvenSenseMPU(object):
 
     _I2Cerror = "I2C failure when communicating with IMU"
 
-    def __init__(self, device_addr, busnum, transposition, scaling):
+    def __init__(self, device_addr, busnum, transposition, scaling, mag_addr=None):
         '''Create an InvenSenseMPU interface.
 
         Arguments:
@@ -82,6 +82,8 @@ class InvenSenseMPU(object):
             busnum (integer): Which of the BeagleBone's I2C buses to use.
             transposition
             scaling
+            mag_addr: I2C address of the magnetometer (different from the I2C ad
+            dress of the main sensor).
 
         '''
 
@@ -102,7 +104,9 @@ class InvenSenseMPU(object):
             self.mpu_addr = self._mpu_addr[device_addr]
 
         self._mpu_i2c = Adafruit_I2C(self.mpu_addr, busnum=busnum)
-
+        if mag_addr is not None:
+            self._mag_i2c = Adafruit_I2C(mag_addr, busnum=busnum)
+        
         self.chip_id                     # Test communication by reading chip_id: throws exception on error
         # Can communicate with chip. Set it up.
         self.wake()                             # wake it up
@@ -115,7 +119,13 @@ class InvenSenseMPU(object):
         '''
         Read bytes to pre-allocated buffer Caller traps OSError.
         '''
-        buf[:] = self._mpu_i2c.readList(memaddr, len(buf))
+	if addr in self._mpu_addr:
+            # Read from accel/gyro main sensor
+            i2c = self._mpu_i2c
+        else:
+            # Read from magnetometer.
+            i2c = self._mag_i2c
+        buf[:] = i2c.readList(memaddr, len(buf))
         # self._mpu_i2c.mem_read(buf, addr, memaddr, timeout=self.timeout)
 
     # write to device
@@ -123,7 +133,13 @@ class InvenSenseMPU(object):
         '''
         Perform a memory write. Caller should trap OSError.
         '''
-        self._mpu_i2c.write8(memaddr, data)
+	if addr in self._mpu_addr:
+            # Write to accel/gyro main sensor
+            i2c = self._mpu_i2c
+        else:
+            # Write to magnetometer.
+            i2c = self._mag_i2c
+        i2c.write8(memaddr, data)
         # self._mpu_i2c.mem_write(data, addr, memaddr, timeout=self.timeout)
 
     # wake
